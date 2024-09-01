@@ -10,32 +10,26 @@ String barcode;
 
 Adafruit_USBH_Host USBHost;
 
-//------------- Core0 -------------//
 // Handles the communication to the 2nd pico
 void setup() {
-  Serial.begin(9000);
+  Serial.begin(9600);
 
-  // Initialize Serial1 for sending data
-  Serial1.setRX(9);
-  Serial1.setTX(8);
-  Serial1.begin(9600);
-}
+  // Initialize Serial2 for sending data
+  Serial2.setRX(9);
+  Serial2.setTX(8);
+  Serial2.begin(9600);
 
-void loop() {
-  Serial.flush();
-}
 
-//------------- Core1 -------------//
-// Handles the USB Input
-void setup1() {
-  rp2040_configure_pio_usb();
+ rp2040_configure_pio_usb();
 
   // Note: For rp2040 pico-pio-usb, calling USBHost.begin() on core1 will have most of the
   // host bit-banging processing works done in core1 to free up core0 for other works
   USBHost.begin(1);
+
+  pinMode(LED_BUILTIN, OUTPUT);
 }
 
-void loop1() {
+void loop() {
   USBHost.task();
 }
 
@@ -52,15 +46,19 @@ void tuh_hid_umount_cb(uint8_t dev_addr, uint8_t instance) {
 
 // Invoked when received report from device via interrupt endpoint
 void tuh_hid_report_received_cb(uint8_t dev_addr, uint8_t instance, uint8_t const *report, uint16_t len) {
-  String key = getChar(report[2]);
-  Serial.print(key);
-
-  if(key == "\n"){
-    Serial1.println(barcode);
-    barcode = "";
-  }else {
-    barcode += key;
+  if(report[2] != 0){
+    String key = getChar(report[2]);
+    if(key == "END"){
+      Serial2.println(barcode);
+      digitalWrite(LED_BUILTIN, LOW);
+      barcode = "";
+    }else {
+      digitalWrite(LED_BUILTIN, HIGH);
+      barcode += key;
+    }
   }
+
+
   
   // continue to request to receive report
   if (!tuh_hid_receive_report(dev_addr, instance)) {
@@ -79,7 +77,7 @@ String getChar(uint8_t input){
   else if(input == 37){ return "8"; }
   else if(input == 38){ return "9"; }
   else if(input == 39){ return "0"; }
-  else if(input == 40){ return "\n"; }
+  else if(input == 40){ return "END"; }
 
   return "";
 }
