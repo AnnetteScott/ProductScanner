@@ -1,26 +1,16 @@
 #include "pio_usb.h"
 #include "Adafruit_TinyUSB.h"
 #include <string>
-#include <WiFi.h>
-#include <HTTPClient.h>
 
 #define PIN_USB_HOST_DP  0
 #define USBH_HELPER_H
 #define PIN_5V_EN_STATE  1
-
-const char* ssid = "SSID";
-const char* password = "PASSWORD";
 
 Adafruit_USBH_Host USBHost;
 
 //------------- Core0 -------------//
 void setup() {
   Serial.begin(9000);
-
-  WiFi.begin(ssid, password);
-  while (WiFi.status() != WL_CONNECTED) {
-    delay(500);
-  }
 }
 
 void loop() {
