@@ -6,11 +6,19 @@
 #define USBH_HELPER_H
 #define PIN_5V_EN_STATE  1
 
+String barcode;
+
 Adafruit_USBH_Host USBHost;
 
 //------------- Core0 -------------//
+// Handles the communication to the 2nd pico
 void setup() {
   Serial.begin(9000);
+
+  // Initialize Serial1 for sending data
+  Serial1.setRX(9);
+  Serial1.setTX(8);
+  Serial1.begin(9600);
 }
 
 void loop() {
@@ -18,6 +26,7 @@ void loop() {
 }
 
 //------------- Core1 -------------//
+// Handles the USB Input
 void setup1() {
   rp2040_configure_pio_usb();
 
@@ -45,6 +54,13 @@ void tuh_hid_umount_cb(uint8_t dev_addr, uint8_t instance) {
 void tuh_hid_report_received_cb(uint8_t dev_addr, uint8_t instance, uint8_t const *report, uint16_t len) {
   String key = getChar(report[2]);
   Serial.print(key);
+
+  if(key == "\n"){
+    Serial1.println(barcode);
+    barcode = "";
+  }else {
+    barcode += key;
+  }
   
   // continue to request to receive report
   if (!tuh_hid_receive_report(dev_addr, instance)) {
