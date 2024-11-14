@@ -10,38 +10,50 @@ String barcode;
 
 Adafruit_USBH_Host USBHost;
 
-// Handles the communication to the 2nd pico
+//------------- Core0 -------------//
 void setup() {
-  Serial.begin(9600);
-
-  // Initialize Serial2 for sending data
+  Serial.begin(115200);
   Serial2.setRX(9);
   Serial2.setTX(8);
   Serial2.begin(9600);
 
-
- rp2040_configure_pio_usb();
-
-  // Note: For rp2040 pico-pio-usb, calling USBHost.begin() on core1 will have most of the
-  // host bit-banging processing works done in core1 to free up core0 for other works
-  USBHost.begin(1);
-
   pinMode(LED_BUILTIN, OUTPUT);
+  //while ( !Serial ) delay(10);   // wait for native usb
+  Serial.println("TinyUSB Dual: HID Device Report Example");
 }
 
 void loop() {
+  Serial.flush();
+  Serial2.flush();
+}
+
+//------------- Core1 -------------//
+void setup1() {
+  // configure pio-usb: defined in usbh_helper.h
+  rp2040_configure_pio_usb();
+
+  // run host stack on controller (rhport) 1
+  // Note: For rp2040 pico-pio-usb, calling USBHost.begin() on core1 will have most of the
+  // host bit-banging processing works done in core1 to free up core0 for other works
+  USBHost.begin(1);
+}
+
+void loop1() {
   USBHost.task();
 }
+
 
 // Invoked when device with hid interface is mounted
 // Invoked when device is mounted
 void tuh_hid_mount_cb(uint8_t dev_addr, uint8_t instance, uint8_t const *desc_report, uint16_t desc_len) {
-  tuh_hid_receive_report(dev_addr, instance);
+  if (!tuh_hid_receive_report(dev_addr, instance)) {
+    Serial.printf("Error: cannot request to receive report\r\n");
+  }
 }
 
-// Invoked when device with hid interface is un-mounted
-void tuh_hid_umount_cb(uint8_t dev_addr, uint8_t instance) {
-  Serial.printf("HID device address = %d, instance = %d is unmounted\r\n", dev_addr, instance);
+/// Invoked when device is unmounted (bus reset/unplugged)
+void tuh_umount_cb(uint8_t daddr) {
+  Serial.printf("Device removed, address = %d\r\n", daddr);
 }
 
 // Invoked when received report from device via interrupt endpoint
@@ -56,10 +68,9 @@ void tuh_hid_report_received_cb(uint8_t dev_addr, uint8_t instance, uint8_t cons
       digitalWrite(LED_BUILTIN, HIGH);
       barcode += key;
     }
+    Serial.print(key);
   }
 
-
-  
   // continue to request to receive report
   if (!tuh_hid_receive_report(dev_addr, instance)) {
     Serial.printf("Error: cannot request to receive report\r\n");
@@ -84,21 +95,8 @@ String getChar(uint8_t input){
 
 
 static void rp2040_configure_pio_usb(void) {
-  //while ( !Serial ) delay(10);   // wait for native usb
-  Serial.println("Core1 setup to run TinyUSB host with pio-usb");
-
   // Check for CPU frequency, must be multiple of 120Mhz for bit-banging USB
   uint32_t cpu_hz = clock_get_hz(clk_sys);
-  if (cpu_hz != 120000000UL && cpu_hz != 240000000UL) {
-    while (!Serial) {
-      delay(10);   // wait for native usb
-    }
-    Serial.printf("Error: CPU Clock = %lu, PIO USB require CPU clock must be multiple of 120 Mhz\r\n", cpu_hz);
-    Serial.printf("Change your CPU Clock to either 120 or 240 Mhz in Menu->CPU Speed \r\n");
-    while (1) {
-      delay(1);
-    }
-  }
 
   pio_usb_configuration_t pio_cfg = PIO_USB_DEFAULT_CONFIG;
   pio_cfg.pin_dp = PIN_USB_HOST_DP;
